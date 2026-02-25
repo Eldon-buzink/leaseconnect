@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -59,7 +59,7 @@ interface CarRow {
   suppliers: string[];
 }
 
-export default function Home() {
+function Home() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -826,5 +826,13 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="dashboard-main" style={{ padding: 24 }}><p>Loading...</p></div>}>
+      <Home />
+    </Suspense>
   );
 }

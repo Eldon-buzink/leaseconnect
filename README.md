@@ -25,6 +25,15 @@ Car specification matching system for leasing companies. Matches supplier vehicl
 
 See [docs/QUICK_START.md](docs/QUICK_START.md) for detailed instructions.
 
+### Deploying to Vercel
+
+The Next.js app lives in the `web/` folder. In Vercel:
+
+1. **Project Settings → General → Root Directory**  
+   Set to **`web`** (click "Edit", enter `web`, save).
+2. **Redeploy**  
+   Trigger a new deployment so the build runs from `web/` and uses `next build`.
+
 ### CLI Usage
 
 ```bash
