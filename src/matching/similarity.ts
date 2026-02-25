@@ -95,6 +95,7 @@ export function trimSimilarity(trim1: string | null, trim2: string | null): numb
 
 /**
  * Calculate overall match score using weighted fields.
+ * Simple wrapper that returns only the overall score.
  */
 export function calculateMatchScore(params: {
   make: { offer: string | null; canonical: string | null };
@@ -102,17 +103,65 @@ export function calculateMatchScore(params: {
   year: { offer: number | null; canonical: number | null };
   trim: { offer: string | null; canonical: string | null };
   fuelType?: { offer: string | null; canonical: string | null };
+  transmission?: { offer: string | null; canonical: string | null };
+  powerHp?: { offer: number | null; canonical: number | null };
 }): number {
-  // Field weights
+  const detailed = calculateMatchScoreDetailed(params);
+  return detailed.overall;
+}
+
+export interface MatchScoreComponents {
+  make: number;
+  model: number;
+  year: number;
+  trim: number;
+  fuelType: number;
+  transmission: number;
+  powerHp: number;
+  overall: number;
+}
+
+function numericSimilarity(v1: number | null, v2: number | null): number {
+  if (v1 == null || v2 == null) return 0.5;
+  if (v1 === v2) return 1.0;
+  const diff = Math.abs(v1 - v2);
+  const max = Math.max(v1, v2);
+  const pct = diff / max;
+  if (pct <= 0.05) return 0.9;
+  if (pct <= 0.1) return 0.8;
+  if (pct <= 0.2) return 0.6;
+  return 0.3;
+}
+
+function transmissionSimilarity(t1: string | null, t2: string | null): number {
+  if (!t1 && !t2) return 1.0;
+  if (!t1 || !t2) return 0.5;
+  return stringSimilarity(t1, t2);
+}
+
+/**
+ * Detailed score with per-field components for explanations.
+ */
+export function calculateMatchScoreDetailed(params: {
+  make: { offer: string | null; canonical: string | null };
+  model: { offer: string | null; canonical: string | null };
+  year: { offer: number | null; canonical: number | null };
+  trim: { offer: string | null; canonical: string | null };
+  fuelType?: { offer: string | null; canonical: string | null };
+  transmission?: { offer: string | null; canonical: string | null };
+  powerHp?: { offer: number | null; canonical: number | null };
+}): MatchScoreComponents {
+  // Rebalanced weights
   const WEIGHTS = {
-    make: 0.3,
-    model: 0.4,
+    make: 0.25,
+    model: 0.35,
     year: 0.15,
     trim: 0.1,
     fuelType: 0.05,
-  };
+    transmission: 0.05,
+    powerHp: 0.05,
+  } as const;
 
-  // Calculate individual scores
   const makeScore = stringSimilarity(params.make.offer, params.make.canonical);
   const modelScore = Math.max(
     stringSimilarity(params.model.offer, params.model.canonical),
@@ -122,16 +171,37 @@ export function calculateMatchScore(params: {
   const trimScore = trimSimilarity(params.trim.offer, params.trim.canonical);
   const fuelScore = params.fuelType
     ? stringSimilarity(params.fuelType.offer, params.fuelType.canonical)
-    : 0;
+    : 0.5;
+  const transmissionScore = params.transmission
+    ? transmissionSimilarity(params.transmission.offer, params.transmission.canonical)
+    : 0.5;
+  const powerScore = params.powerHp
+    ? numericSimilarity(params.powerHp.offer, params.powerHp.canonical)
+    : 0.5;
 
-  // Weighted sum
-  const totalScore =
-    makeScore * WEIGHTS.make +
-    modelScore * WEIGHTS.model +
-    yearScore * WEIGHTS.year +
-    trimScore * WEIGHTS.trim +
-    fuelScore * WEIGHTS.fuelType;
+  const overall = Math.min(
+    1.0,
+    Math.max(
+      0.0,
+      makeScore * WEIGHTS.make +
+        modelScore * WEIGHTS.model +
+        yearScore * WEIGHTS.year +
+        trimScore * WEIGHTS.trim +
+        fuelScore * WEIGHTS.fuelType +
+        transmissionScore * WEIGHTS.transmission +
+        powerScore * WEIGHTS.powerHp
+    )
+  );
 
-  return Math.min(1.0, Math.max(0.0, totalScore));
+  return {
+    make: makeScore,
+    model: modelScore,
+    year: yearScore,
+    trim: trimScore,
+    fuelType: fuelScore,
+    transmission: transmissionScore,
+    powerHp: powerScore,
+    overall,
+  };
 }
 

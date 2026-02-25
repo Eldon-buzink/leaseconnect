@@ -37,7 +37,7 @@
 
 ### 1. Get Supabase API Keys
 
-1. Go to: https://supabase.com/dashboard/project/qkcjlbycgytlinsblrja/settings/api
+1. Go to your Supabase project dashboard → **Project Settings → API**
 2. Copy:
    - **anon/public key** → `SUPABASE_ANON_KEY`
    - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY`

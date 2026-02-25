@@ -98,7 +98,6 @@ Leaseconnect/
 ## 🔗 Links
 
 - **Web Dashboard:** http://localhost:3000 (when running `npm run dev` in `web/`)
-- **Supabase Dashboard:** https://supabase.com/dashboard/project/qkcjlbycgytlinsblrja
 - **GitHub:** https://github.com/Eldon-buzink/leaseconnect
 
 ## 📝 License

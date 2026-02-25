@@ -8,7 +8,7 @@ import { logger } from '../utils/logger';
 import { MatchingError } from '../utils/errors';
 import { config } from '../utils/config';
 import { getSupabaseClient } from '../utils/supabase';
-import { calculateMatchScore } from './similarity';
+import { calculateMatchScoreDetailed, MatchScoreComponents } from './similarity';
 
 // Cache canonical vehicles in memory (updated on first load)
 let canonicalVehiclesCache: CanonicalVehicle[] | null = null;
@@ -175,8 +175,12 @@ function scoredMatch(
   normalizedOffer: NormalizedOffer,
   canonicalVehicles: CanonicalVehicle[],
   minScore: number = 0.6
-): Array<{ vehicle: CanonicalVehicle; score: number }> {
-  const candidates: Array<{ vehicle: CanonicalVehicle; score: number }> = [];
+): Array<{ vehicle: CanonicalVehicle; score: number; components: MatchScoreComponents }> {
+  const candidates: Array<{
+    vehicle: CanonicalVehicle;
+    score: number;
+    components: MatchScoreComponents;
+  }> = [];
 
   // Filter by make first (if available) for performance
   const filteredVehicles = normalizedOffer.make
@@ -197,7 +201,7 @@ function scoredMatch(
 
   // Calculate scores for all candidates
   for (const vehicle of searchVehicles) {
-    const score = calculateMatchScore({
+    const components = calculateMatchScoreDetailed({
       make: {
         offer: normalizedOffer.make,
         canonical: vehicle.make,
@@ -218,10 +222,20 @@ function scoredMatch(
         offer: normalizedOffer.fuelType,
         canonical: vehicle.fuelType,
       },
+      transmission: {
+        offer: normalizedOffer.transmission,
+        canonical: vehicle.transmission,
+      },
+      powerHp: {
+        offer: normalizedOffer.powerHp,
+        canonical: vehicle.powerHp,
+      },
     });
 
+    const score = components.overall;
+
     if (score >= minScore) {
-      candidates.push({ vehicle, score });
+      candidates.push({ vehicle, score, components });
     }
   }
 
@@ -326,6 +340,8 @@ export async function matchOffer(
           vehicleId: overrideVehicle.id,
         });
 
+        const explanation = 'Matched via manual override mapping for this supplier offer.';
+
         return {
           id: 0, // Will be set by database
           normalizedOfferId,
@@ -336,7 +352,7 @@ export async function matchOffer(
           status: 'approved',
           reviewedBy: null,
           reviewedAt: null,
-          reviewNotes: null,
+          reviewNotes: explanation,
           matchedAt: new Date(),
           updatedAt: new Date(),
         };
@@ -351,6 +367,9 @@ export async function matchOffer(
         vehicleId: deterministicMatchResult.id,
       });
 
+      const explanation =
+        'Deterministic match – exact (or near-exact) match on make, model, year (±1), and trim.';
+
       return {
         id: 0,
         normalizedOfferId,
@@ -361,7 +380,7 @@ export async function matchOffer(
         status: 'approved',
         reviewedBy: null,
         reviewedAt: null,
-        reviewNotes: null,
+        reviewNotes: explanation,
         matchedAt: new Date(),
         updatedAt: new Date(),
       };
@@ -402,6 +421,16 @@ export async function matchOffer(
       status,
     });
 
+    const explanation =
+      `Scored match – make ${bestMatch.components.make.toFixed(2)}, ` +
+      `model ${bestMatch.components.model.toFixed(2)}, ` +
+      `year ${bestMatch.components.year.toFixed(2)}, ` +
+      `trim ${bestMatch.components.trim.toFixed(2)}, ` +
+      `fuel ${bestMatch.components.fuelType.toFixed(2)}, ` +
+      `transmission ${bestMatch.components.transmission.toFixed(2)}, ` +
+      `power ${bestMatch.components.powerHp.toFixed(2)}, ` +
+      `overall ${confidenceScore.toFixed(2)}`;
+
     return {
       id: 0,
       normalizedOfferId,
@@ -412,7 +441,7 @@ export async function matchOffer(
       status,
       reviewedBy: null,
       reviewedAt: null,
-      reviewNotes: null,
+      reviewNotes: explanation,
       matchedAt: new Date(),
       updatedAt: new Date(),
     };
