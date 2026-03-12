@@ -6,18 +6,26 @@ Car specification matching system for leasing companies. Matches supplier vehicl
 
 ### Web UI (Recommended)
 
-**Localhost Address: http://localhost:3000**
-
-1. **Set up web UI:**
+1. **From project root**, start the web app (this is the default `dev` command):
    ```bash
-   cd web
-   ./setup-env.sh
    npm run dev
    ```
+   The terminal will show the URL (e.g. **http://localhost:3000**). Open that exact URL in your browser.
 
-2. **Open browser:** http://localhost:3000
+2. **First-time setup** (env and deps): if needed, run once:
+   ```bash
+   cd web && ./setup-env.sh && npm install
+   ```
+   Then from root again: `npm run dev`.
 
-3. **Run matching** (to see data):
+3. **If you see 404 on http://localhost:3000:**  
+   Something else is using port 3000. Stop any other dev servers (e.g. backend, another terminal with `npm run dev`), then run `npm run dev` again. If it still says "Port 3000 is already in use", free it:
+   ```bash
+   npx kill-port 3000
+   ```
+   Then run `npm run dev` again and open http://localhost:3000.
+
+4. **Run matching** (to see data):
    ```bash
    # From project root
    npm run rematch-all
@@ -106,7 +114,8 @@ Leaseconnect/
 
 ## 🔗 Links
 
-- **Web Dashboard:** http://localhost:3000 (when running `npm run dev` in `web/`)
+- **Web Dashboard:** Run `npm run dev` from project root, then open the URL shown (e.g. http://localhost:3000). Do not open a different port or you will get 404s.
+- **Backend/API** (optional): `npm run dev:api` from project root.
 - **GitHub:** https://github.com/Eldon-buzink/leaseconnect
 
 ## 📝 License

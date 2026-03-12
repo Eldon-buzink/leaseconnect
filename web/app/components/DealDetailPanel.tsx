@@ -107,7 +107,7 @@ export function DealDetailPanel({
             Close
           </button>
         ) : (
-          <Link href="/" className="deal-back">Dashboard</Link>
+          <Link href="/" className="deal-back">← Back</Link>
         )}
         <div className="deal-title-block">
           <h2 className="deal-title">
@@ -116,38 +116,49 @@ export function DealDetailPanel({
           </h2>
           {cv.trim && <p className="deal-subtitle">{cv.trim}</p>}
         </div>
-        <span className="deal-breadcrumb-inline">{carLabel} · {supplierLabel}</span>
+        {!compact && (
+          <span className="deal-breadcrumb-inline">
+            Zoeken › {carLabel} › {supplierLabel}
+          </span>
+        )}
       </div>
 
       <div className="deal-two-col">
-        <aside className="deal-sidebar">
+        <aside className="deal-sidebar deal-sidebar-price">
           <section className="deal-section deal-deal-card">
-            <h3 className="deal-section-title">This deal</h3>
-            <dl className="deal-specs">
-              <dt>Leasing company</dt>
-              <dd className="deal-company">{offer.supplier_id}</dd>
-              <dt>Original name</dt>
+            <div className="deal-price-block">
+              <span className="deal-price-amount">—</span>
+              <span className="deal-price-label">prijs p.m. excl. BTW</span>
+            </div>
+            <div className="deal-deal-badges">
+              <span className={`badge badge-${match.match_type}`}>{match.match_type}</span>
+              <span className={`badge badge-${match.status}`}>{match.status}</span>
+            </div>
+            <p className="deal-lease-type">Operationeel Zakelijk</p>
+            {!compact && (
+              <Link href={`/car/${cv.id}`} className="deal-toon-raster">Toon raster</Link>
+            )}
+            <h3 className="deal-section-title">Leasemaatschappij</h3>
+            <p className="deal-company-name">{offer.supplier_id}</p>
+            <dl className="deal-specs deal-specs-compact">
+              <dt>Originele naam</dt>
               <dd className="deal-dd-wrap">{offer.supplier_offer_id}</dd>
-              <dt>Match type</dt>
-              <dd><span className={`badge badge-${match.match_type}`}>{match.match_type}</span></dd>
               <dt>Confidence</dt>
               <dd>{(match.confidence_score * 100).toFixed(1)}%</dd>
-              <dt>Status</dt>
-              <dd><span className={`badge badge-${match.status}`}>{match.status}</span></dd>
             </dl>
           </section>
         </aside>
 
         <main className="deal-main">
           <div className="deal-tabs">
-            <button type="button" className={`deal-tab ${activeTab === 'details' ? 'active' : ''}`} onClick={() => setActiveTab('details')}>Details</button>
+            <button type="button" className={`deal-tab ${activeTab === 'details' ? 'active' : ''}`} onClick={() => setActiveTab('details')}>Samenstelling</button>
             <button type="button" className={`deal-tab ${activeTab === 'why-matched' ? 'active' : ''}`} onClick={() => setActiveTab('why-matched')}>Why matched</button>
             <button type="button" className={`deal-tab ${activeTab === 'other-offers' ? 'active' : ''}`} onClick={() => setActiveTab('other-offers')}>Other offers</button>
           </div>
 
           {activeTab === 'details' && (
             <section className="deal-section deal-tab-panel">
-              <h3 className="deal-section-title">Vehicle details</h3>
+              <h3 className="deal-section-title">Samenstelling</h3>
               <div className="deal-details-grid">
                 <div>
                   <h4 className="deal-details-subtitle">Canonical vehicle</h4>

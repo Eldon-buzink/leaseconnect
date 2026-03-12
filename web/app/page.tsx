@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { DealDetailPanel, type MatchDetail, type OtherMatch } from '@/app/components/DealDetailPanel';
+import { CarImage } from '@/app/components/CarImage';
 
 interface Match {
   id: number;
@@ -48,15 +49,16 @@ interface Stats {
   override: number;
 }
 
-interface CarRow {
-  id: number;
+interface ModelRow {
   make: string;
   model: string;
-  trim: string | null;
-  year: number | null;
-  autodisk_id: string;
-  matchCount: number;
-  suppliers: string[];
+  yearMin: number | null;
+  yearMax: number | null;
+  variantCount: number;
+  supplierCount: number;
+  suppliers: string[]; // for display only (top N)
+  statusCounts: { approved: number; review: number; pending: number; rejected: number };
+  matchTypeCounts: { deterministic: number; scored: number; override: number };
 }
 
 function Home() {
@@ -65,9 +67,13 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  const [makeFilter, setMakeFilter] = useState<string>('');
+  const [modelFilter, setModelFilter] = useState<string>('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
   const [fuelFilter, setFuelFilter] = useState<string>('');
   const [transmissionFilter, setTransmissionFilter] = useState<string>('');
+  const [makes, setMakes] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [fuelTypes, setFuelTypes] = useState<string[]>([]);
   const [transmissions, setTransmissions] = useState<string[]>([]);
@@ -75,11 +81,8 @@ function Home() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const searchParams = useSearchParams();
   const [viewMode, setViewMode] = useState<'cars' | 'review'>('cars');
-  const [cars, setCars] = useState<CarRow[]>([]);
-  const [carsLoading, setCarsLoading] = useState(false);
-  const [expandedCarId, setExpandedCarId] = useState<number | null>(null);
-  const [carMatches, setCarMatches] = useState<Match[]>([]);
-  const [carMatchesLoading, setCarMatchesLoading] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsList, setModelsList] = useState<ModelRow[]>([]);
   const [dealModalMatchId, setDealModalMatchId] = useState<number | null>(null);
   const [dealModalData, setDealModalData] = useState<{ match: MatchDetail; otherMatches: OtherMatch[] } | null>(null);
   const [dealModalLoading, setDealModalLoading] = useState(false);
@@ -88,6 +91,24 @@ function Home() {
   useEffect(() => {
     loadFilterOptions();
   }, []);
+
+  useEffect(() => {
+    // Update dependent model dropdown when make changes.
+    (async () => {
+      try {
+        const { data: cvRows } = await supabase.from('canonical_vehicles').select('make, model');
+        const all = cvRows || [];
+        const filteredModels = all
+          .filter((r: { make?: string }) => !makeFilter || r.make === makeFilter)
+          .map((r: { model?: string }) => r.model)
+          .filter(Boolean);
+        setModels([...new Set(filteredModels)].sort() as string[]);
+        if (modelFilter && !filteredModels.includes(modelFilter)) setModelFilter('');
+      } catch {
+        // ignore
+      }
+    })();
+  }, [makeFilter]);
 
   const viewFromUrl = searchParams.get('view');
   useEffect(() => {
@@ -101,8 +122,8 @@ function Home() {
 
   useEffect(() => {
     if (viewMode === 'review') loadData();
-    else loadCarsData();
-  }, [viewMode, filter, supplierFilter, fuelFilter, transmissionFilter]);
+    else loadModelsData();
+  }, [viewMode, filter, makeFilter, modelFilter, supplierFilter, fuelFilter, transmissionFilter]);
 
   useEffect(() => {
     if (!dealModalMatchId) {
@@ -163,58 +184,133 @@ function Home() {
       setSuppliers([...new Set(rows.map((r) => r.supplier_id).filter(Boolean))].sort());
       setFuelTypes([...new Set(rows.map((r) => r.fuel_type).filter(Boolean))].sort());
       setTransmissions([...new Set(rows.map((r) => r.transmission).filter(Boolean))].sort());
+
+      const { data: cvRows } = await supabase
+        .from('canonical_vehicles')
+        .select('make, model');
+      const all = cvRows || [];
+      const distinctMakes = [...new Set(all.map((r: { make?: string }) => r.make).filter(Boolean))].sort() as string[];
+      setMakes(distinctMakes);
+      const filteredModels = all
+        .filter((r: { make?: string }) => !makeFilter || r.make === makeFilter)
+        .map((r: { model?: string }) => r.model)
+        .filter(Boolean);
+      setModels([...new Set(filteredModels)].sort() as string[]);
     } catch {
       // ignore
     }
   }
 
-  async function loadCarsData() {
+  async function loadModelsData() {
     try {
-      setCarsLoading(true);
+      setModelsLoading(true);
       setError(null);
+
+      let cvQuery = supabase
+        .from('canonical_vehicles')
+        .select('id, make, model, trim, year')
+        .order('make')
+        .order('model')
+        .order('trim');
+      if (makeFilter) cvQuery = cvQuery.eq('make', makeFilter);
+      if (modelFilter) cvQuery = cvQuery.eq('model', modelFilter);
+      const { data: cvRows, error: cvError } = await cvQuery.limit(2000);
+      if (cvError) throw cvError;
+
+      const vehicles = (cvRows || []) as { id: number; make: string; model: string; trim: string | null; year: number | null }[];
+      const vehicleIds = vehicles.map((v) => v.id);
+      const modelKeyByVehicleId = new Map<number, string>();
+      vehicles.forEach((v) => modelKeyByVehicleId.set(v.id, `${v.make}||${v.model}`));
+
       const hasOfferFilter = supplierFilter || fuelFilter || transmissionFilter;
       const selectMatches = hasOfferFilter
-        ? `canonical_vehicle_id, normalized_offer:normalized_offers!inner(supplier_id)`
-        : `canonical_vehicle_id, normalized_offer:normalized_offers(supplier_id)`;
+        ? `canonical_vehicle_id, status, match_type, normalized_offer:normalized_offers!inner(supplier_id)`
+        : `canonical_vehicle_id, status, match_type, normalized_offer:normalized_offers(supplier_id)`;
       let matchQuery = supabase.from('matches').select(selectMatches);
+      if (vehicleIds.length > 0) matchQuery = matchQuery.in('canonical_vehicle_id', vehicleIds);
       if (supplierFilter) matchQuery = matchQuery.eq('normalized_offers.supplier_id', supplierFilter);
       if (fuelFilter) matchQuery = matchQuery.eq('normalized_offers.fuel_type', fuelFilter);
       if (transmissionFilter) matchQuery = matchQuery.eq('normalized_offers.transmission', transmissionFilter);
       const { data: matchRows } = await matchQuery;
-      const countByVehicle: Record<number, { count: number; suppliers: Set<string> }> = {};
-      (matchRows || []).forEach((r: { canonical_vehicle_id: number; normalized_offer: { supplier_id?: string } | { supplier_id?: string }[] }) => {
-        const id = r.canonical_vehicle_id;
+
+      const groupMap = new Map<
+        string,
+        {
+          make: string;
+          model: string;
+          years: number[];
+          variantCount: number;
+          supplierSet: Set<string>;
+          statusCounts: { approved: number; review: number; pending: number; rejected: number };
+          matchTypeCounts: { deterministic: number; scored: number; override: number };
+        }
+      >();
+      vehicles.forEach((v) => {
+        const key = `${v.make}||${v.model}`;
+        const group = groupMap.get(key) ?? {
+          make: v.make,
+          model: v.model,
+          years: [],
+          variantCount: 0,
+          supplierSet: new Set<string>(),
+          statusCounts: { approved: 0, review: 0, pending: 0, rejected: 0 },
+          matchTypeCounts: { deterministic: 0, scored: 0, override: 0 },
+        };
+        group.variantCount += 1;
+        if (v.year != null) group.years.push(v.year);
+        groupMap.set(key, group);
+      });
+
+      (matchRows || []).forEach((r: any) => {
+        const vid: number = r.canonical_vehicle_id;
+        const key = modelKeyByVehicleId.get(vid);
+        if (!key) return;
+        const group = groupMap.get(key);
+        if (!group) return;
         const offer = Array.isArray(r.normalized_offer) ? r.normalized_offer[0] : r.normalized_offer;
-        if (!countByVehicle[id]) countByVehicle[id] = { count: 0, suppliers: new Set() };
-        countByVehicle[id].count++;
-        if (offer?.supplier_id) countByVehicle[id].suppliers.add(offer.supplier_id);
+        const supplierId = offer?.supplier_id as string | undefined;
+        if (supplierId) group.supplierSet.add(supplierId);
+
+        const status = String(r.status || '');
+        if (status === 'approved') group.statusCounts.approved += 1;
+        else if (status === 'review') group.statusCounts.review += 1;
+        else if (status === 'pending') group.statusCounts.pending += 1;
+        else if (status === 'rejected') group.statusCounts.rejected += 1;
+
+        const mt = String(r.match_type || '');
+        if (mt === 'deterministic') group.matchTypeCounts.deterministic += 1;
+        else if (mt === 'scored') group.matchTypeCounts.scored += 1;
+        else if (mt === 'override') group.matchTypeCounts.override += 1;
       });
-      const vehicleIds = Object.keys(countByVehicle).map(Number);
-      let cvQuery = supabase.from('canonical_vehicles').select('id, make, model, trim, year, autodisk_id').order('make').order('model');
-      if (vehicleIds.length > 0 && hasOfferFilter) {
-        cvQuery = cvQuery.in('id', vehicleIds);
-      } else {
-        cvQuery = cvQuery.limit(1500);
-      }
-      const { data: cvRows, error: cvError } = await cvQuery;
-      if (cvError) throw cvError;
-      const list: CarRow[] = (cvRows || []).map((cv: { id: number; make: string; model: string; trim: string | null; year: number | null; autodisk_id: string }) => {
-        const info = countByVehicle[cv.id];
-        const matchCount = info?.count ?? 0;
-        const suppliers = info ? [...info.suppliers].sort() : [];
-        return { ...cv, matchCount, suppliers };
+
+      const list: ModelRow[] = Array.from(groupMap.values()).map((g) => {
+        const yearsSorted = g.years.slice().sort((a, b) => a - b);
+        const yearMin = yearsSorted.length ? yearsSorted[0] : null;
+        const yearMax = yearsSorted.length ? yearsSorted[yearsSorted.length - 1] : null;
+        const suppliersSorted = Array.from(g.supplierSet).sort();
+        return {
+          make: g.make,
+          model: g.model,
+          yearMin,
+          yearMax,
+          variantCount: g.variantCount,
+          supplierCount: suppliersSorted.length,
+          suppliers: suppliersSorted.slice(0, 3),
+          statusCounts: g.statusCounts,
+          matchTypeCounts: g.matchTypeCounts,
+        };
       });
-      if (!hasOfferFilter) {
-        list.sort((a, b) => b.matchCount - a.matchCount);
-      }
-      setCars(list);
+
+      list.sort((a, b) => b.supplierCount - a.supplierCount || b.variantCount - a.variantCount || a.make.localeCompare(b.make) || a.model.localeCompare(b.model));
+
+      setModelsList(list);
       setFilteredCount(list.length);
       await loadStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load cars');
-      setCars([]);
+      setModelsList([]);
     } finally {
-      setCarsLoading(false);
+      setModelsLoading(false);
     }
   }
 
@@ -244,26 +340,6 @@ function Home() {
       });
     } catch {
       setStats(null);
-    }
-  }
-
-  async function loadMatchesForCar(canonicalVehicleId: number) {
-    setCarMatchesLoading(true);
-    try {
-      const hasOfferFilter = supplierFilter || fuelFilter || transmissionFilter;
-      const selectWithJoin = hasOfferFilter
-        ? `*, normalized_offer:normalized_offers!inner(supplier_id, supplier_offer_id, make, model, trim, year, fuel_type, transmission), canonical_vehicle:canonical_vehicles(make, model, trim, year, autodisk_id, fuel_type, transmission)`
-        : `*, normalized_offer:normalized_offers(supplier_id, supplier_offer_id, make, model, trim, year, fuel_type, transmission), canonical_vehicle:canonical_vehicles(make, model, trim, year, autodisk_id, fuel_type, transmission)`;
-      let q = supabase.from('matches').select(selectWithJoin).eq('canonical_vehicle_id', canonicalVehicleId).order('confidence_score', { ascending: false });
-      if (supplierFilter) q = q.eq('normalized_offers.supplier_id', supplierFilter);
-      if (fuelFilter) q = q.eq('normalized_offers.fuel_type', fuelFilter);
-      if (transmissionFilter) q = q.eq('normalized_offers.transmission', transmissionFilter);
-      const { data } = await q;
-      setCarMatches((data || []) as Match[]);
-    } catch {
-      setCarMatches([]);
-    } finally {
-      setCarMatchesLoading(false);
     }
   }
 
@@ -405,37 +481,29 @@ function Home() {
     <div className="container">
       <div className="header">
         <h1>{viewMode === 'cars' ? 'Cars' : 'Review'}</h1>
-        <p>{viewMode === 'cars' ? 'Canonical vehicles and offer counts' : 'Matches that need your approval'}</p>
+        <p>{viewMode === 'cars' ? 'Car models, variants, and offer coverage' : 'Matches that need your approval'}</p>
       </div>
 
       {error && <div className="error">Error: {error}</div>}
 
       {stats && (
-        <div className="stats-grid">
-          <div className="stat-card">
-            <h3>Total Matches</h3>
-            <div className="value">{stats.total.toLocaleString()}</div>
-            <div className="label">All matches found</div>
-          </div>
-          <div className="stat-card">
-            <h3>Approved</h3>
-            <div className="value">{stats.approved.toLocaleString()}</div>
-            <div className="label">
-              {stats.total > 0 ? `${((stats.approved / stats.total) * 100).toFixed(1)}%` : '0%'}
-            </div>
-          </div>
-          <div className="stat-card">
-            <h3>Review Queue</h3>
-            <div className="value">{stats.review.toLocaleString()}</div>
-            <div className="label">Needs manual review</div>
-          </div>
-          <div className="stat-card">
-            <h3>Match Types</h3>
-            <div className="value">{stats.deterministic + stats.scored + stats.override}</div>
-            <div className="label">
-              Det: {stats.deterministic} | Scored: {stats.scored} | Override: {stats.override}
-            </div>
-          </div>
+        <div className="stats-bar">
+          <span className="stats-bar-item">
+            <span className="stats-bar-value">{stats.total.toLocaleString()}</span>
+            <span className="stats-bar-label">Total matches</span>
+          </span>
+          <span className="stats-bar-item">
+            <span className="stats-bar-value">{stats.approved.toLocaleString()}</span>
+            <span className="stats-bar-label">Approved {stats.total > 0 ? `(${((stats.approved / stats.total) * 100).toFixed(0)}%)` : ''}</span>
+          </span>
+          <span className="stats-bar-item">
+            <span className="stats-bar-value">{stats.review.toLocaleString()}</span>
+            <span className="stats-bar-label">Review queue</span>
+          </span>
+          <span className="stats-bar-item">
+            <span className="stats-bar-value">Det {stats.deterministic} · Scored {stats.scored} · Over {stats.override}</span>
+            <span className="stats-bar-label">Match types</span>
+          </span>
         </div>
       )}
 
@@ -472,6 +540,36 @@ function Home() {
               </button>
             </div>
           </div>
+          )}
+          {viewMode === 'cars' && (
+            <>
+              <div className="sidebar-section">
+                <span className="sidebar-label">Make</span>
+                <select
+                  value={makeFilter}
+                  onChange={(e) => setMakeFilter(e.target.value)}
+                  className="filter-select filter-select-full"
+                >
+                  <option value="">All makes</option>
+                  {makes.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sidebar-section">
+                <span className="sidebar-label">Model</span>
+                <select
+                  value={modelFilter}
+                  onChange={(e) => setModelFilter(e.target.value)}
+                  className="filter-select filter-select-full"
+                >
+                  <option value="">All models</option>
+                  {models.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
           <div className="sidebar-section">
             <span className="sidebar-label">Supplier</span>
@@ -512,11 +610,11 @@ function Home() {
               ))}
             </select>
           </div>
-          {(filter !== 'all' || supplierFilter || fuelFilter || transmissionFilter) && (
+          {(filter !== 'all' || makeFilter || modelFilter || supplierFilter || fuelFilter || transmissionFilter) && (
             <button
               type="button"
               className="clear-filters"
-              onClick={() => { setFilter('all'); setSupplierFilter(''); setFuelFilter(''); setTransmissionFilter(''); }}
+              onClick={() => { setFilter('all'); setMakeFilter(''); setModelFilter(''); setSupplierFilter(''); setFuelFilter(''); setTransmissionFilter(''); }}
             >
               Clear filters
             </button>
@@ -524,144 +622,104 @@ function Home() {
         </aside>
 
         <main className="dashboard-main">
-      <div className="table-container">
-        <div className="table-header">
-          <h2>{viewMode === 'cars' ? 'Canonical vehicles' : 'Matches'}</h2>
-          <div className="table-header-right">
-            <span className="result-count">
-              {viewMode === 'cars'
-                ? (filteredCount != null ? `${filteredCount.toLocaleString()} car${filteredCount !== 1 ? 's' : ''}` : '')
-                : filteredCount !== null
-                  ? `${filteredCount.toLocaleString()} match${filteredCount !== 1 ? 'es' : ''}`
-                  : stats != null
-                    ? `${(stats.total).toLocaleString()} matches`
-                    : ''}
-            </span>
-            <button
-              onClick={() => viewMode === 'cars' ? loadCarsData() : loadData()}
-              className="btn-refresh"
-            >
-              Refresh
-            </button>
+      {viewMode === 'cars' ? (
+        <>
+          <div className="table-container table-container-header-only">
+            <div className="table-header">
+              <h2>Car models</h2>
+              <div className="table-header-right">
+                <span className="result-count">
+                  {filteredCount != null ? `${filteredCount.toLocaleString()} model${filteredCount !== 1 ? 's' : ''}` : ''}
+                </span>
+                <button onClick={() => loadModelsData()} className="btn-refresh">Refresh</button>
+              </div>
+            </div>
           </div>
-        </div>
-        {viewMode === 'cars' ? (
-          carsLoading ? (
-            <div className="loading">Loading cars...</div>
-          ) : cars.length === 0 ? (
-            <div className="loading">
+          {modelsLoading ? (
+            <div className="dashboard-list-area"><div className="loading">Loading cars...</div></div>
+          ) : modelsList.length === 0 ? (
+            <div className="dashboard-list-area"><div className="loading">
               No cars found.{' '}
               {!supplierFilter && !fuelFilter && !transmissionFilter && (
                 <span>Run <code>npm run load-autodisk</code> to load canonical vehicles.</span>
               )}
-            </div>
+            </div></div>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th className="th-image">Image</th>
-                  <th>Car</th>
-                  <th>Autodisk ID</th>
-                  <th>Offers</th>
-                  <th>Suppliers</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cars.map((car) => (
-                  <React.Fragment key={car.id}>
-                    <tr
-                      className="tr-clickable"
-                      onClick={() => {
-                        const next = expandedCarId === car.id ? null : car.id;
-                        setExpandedCarId(next);
-                        if (next) loadMatchesForCar(next);
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          const next = expandedCarId === car.id ? null : car.id;
-                          setExpandedCarId(next);
-                          if (next) loadMatchesForCar(next);
-                        }
-                      }}
-                    >
-                      <td className="td-image">
-                        <div className="car-img-placeholder" aria-hidden>Image</div>
-                      </td>
-                      <td>
-                        <div className="deal-line-cell deal-line-cell-with-icon">
-                          <span className="row-expand-icon" aria-hidden>
-                            {expandedCarId === car.id ? '▼' : '▶'}
-                          </span>
-                          <div className="deal-line-inner">
-                            <div className="deal-line-main">
-                              {car.make} {car.model}
-                              {car.trim && <> · {car.trim}</>}
-                              {car.year != null && <> ({car.year})</>}
-                            </div>
-                          </div>
+            <div className="dashboard-list-area">
+            <div className="model-list">
+                {modelsList.map((row) => {
+                  const href = `/model/${encodeURIComponent(row.make)}/${encodeURIComponent(row.model)}`;
+                  const yearsLabel =
+                    row.yearMin != null && row.yearMax != null
+                      ? row.yearMin === row.yearMax
+                        ? String(row.yearMin)
+                        : `${row.yearMin}–${row.yearMax}`
+                      : '—';
+                  const suppliersLabel =
+                    row.suppliers.length > 0
+                      ? `${row.suppliers.join(', ')}${row.supplierCount > row.suppliers.length ? ', …' : ''}`
+                      : '—';
+                  const review = row.statusCounts.review;
+                  const approved = row.statusCounts.approved;
+                  const det = row.matchTypeCounts.deterministic;
+                  const scored = row.matchTypeCounts.scored;
+                  const ov = row.matchTypeCounts.override;
+
+                  return (
+                    <div key={`${row.make}||${row.model}`} className="model-row-card">
+                      <Link href={href} className="model-row-link">
+                        <div className="model-row-left">
+                          <CarImage make={row.make} model={row.model} year={row.yearMax ?? row.yearMin} className="model-row-img" />
                         </div>
-                      </td>
-                      <td>{car.autodisk_id}</td>
-                      <td>{car.matchCount}</td>
-                      <td>{car.suppliers.length ? car.suppliers.join(', ') : '—'}</td>
-                    </tr>
-                    {expandedCarId === car.id && (
-                      <tr>
-                        <td colSpan={5}>
-                          <div className="car-offers-expanded">
-                            {carMatchesLoading ? (
-                              <div className="loading">Loading offers...</div>
-                            ) : carMatches.length === 0 ? (
-                              <p className="deal-muted">No offers for this car.</p>
-                            ) : (
-                              <table className="deal-table">
-                                <thead>
-                                  <tr>
-                                    <th>Supplier</th>
-                                    <th>Offer</th>
-                                    <th>Match type</th>
-                                    <th>Confidence</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {carMatches.map((m) => (
-                                    <tr key={m.id}>
-                                      <td>{m.normalized_offer?.supplier_id}</td>
-                                      <td>{m.normalized_offer?.make} {m.normalized_offer?.model} {m.normalized_offer?.trim && ` · ${m.normalized_offer.trim}`}</td>
-                                      <td><span className={`badge badge-${m.match_type}`}>{m.match_type}</span></td>
-                                      <td><span className={`score ${getScoreClass(m.confidence_score)}`}>{(m.confidence_score * 100).toFixed(1)}%</span></td>
-                                      <td><span className={`badge badge-${m.status}`}>{m.status}</span></td>
-                                      <td onClick={(e) => e.stopPropagation()}>
-                                        <div className="actions-cell">
-                                          <button type="button" className="btn-view-deal" onClick={(e) => { e.stopPropagation(); setDealModalMatchId(m.id); }}>View deal</button>
-                                          {m.status === 'review' && (
-                                            <>
-                                              <button type="button" className="btn-approve" onClick={() => updateMatchStatus(m.id, 'approved')}>Approve</button>
-                                              <button type="button" className="btn-reject" onClick={() => updateMatchStatus(m.id, 'rejected')}>Reject</button>
-                                            </>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                        <div className="model-row-main">
+                          <div className="model-row-title">
+                            <strong>{row.make} {row.model}</strong>
+                            <span className="model-row-years">({yearsLabel})</span>
+                          </div>
+                          <div className="model-row-meta">
+                            <span>{row.variantCount} variants</span>
+                            <span className="model-row-sep">·</span>
+                            <span>{row.supplierCount} supplier{row.supplierCount !== 1 ? 's' : ''}</span>
+                            {suppliersLabel !== '—' && (
+                              <>
+                                <span className="model-row-sep">·</span>
+                                <span className="model-row-suppliers">{suppliersLabel}</span>
+                              </>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          )
-        ) : loading ? (
+                          <div className="model-row-badges">
+                            <span className="badge badge-approved">{approved} approved</span>
+                            <span className="badge badge-review">{review} review</span>
+                            <span className="model-row-types">Det {det} · Scored {scored} · Over {ov}</span>
+                          </div>
+                        </div>
+                        <div className="model-row-cta">
+                          <span className="btn-bekijk-deals">Bekijk uitvoeringen</span>
+                        </div>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="table-container table-container-full">
+          <div className="table-header">
+            <h2>Matches</h2>
+            <div className="table-header-right">
+              <span className="result-count">
+                {filteredCount !== null
+                  ? `${filteredCount.toLocaleString()} match${filteredCount !== 1 ? 'es' : ''}`
+                  : stats != null
+                    ? `${(stats.total).toLocaleString()} matches`
+                    : ''}
+              </span>
+              <button onClick={() => loadData()} className="btn-refresh">Refresh</button>
+            </div>
+          </div>
+        {loading ? (
           <div className="loading">Loading matches...</div>
         ) : matches.length === 0 ? (
           <div className="loading">
@@ -673,9 +731,11 @@ function Home() {
             )}
           </div>
         ) : (
+          <div className="table-body">
           <table className="table-matches">
             <thead>
               <tr>
+                <th className="th-thumb">Car</th>
                 <th>Supplier Offer</th>
                 <th>Canonical Vehicle</th>
                 <th>Match Type</th>
@@ -699,6 +759,16 @@ function Home() {
                     }
                   }}
                 >
+                  <td className="td-thumb">
+                    {match.canonical_vehicle && (
+                      <CarImage
+                        make={match.canonical_vehicle.make}
+                        model={match.canonical_vehicle.model}
+                        year={match.canonical_vehicle.year ?? undefined}
+                        className="match-row-img"
+                      />
+                    )}
+                  </td>
                   <td>
                     <div className="deal-line-cell deal-line-cell-with-icon">
                       <span className="row-expand-icon" aria-hidden>
@@ -771,7 +841,7 @@ function Home() {
                 </tr>
                 {expandedId === match.id && (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div style={{ fontSize: '11px', color: '#555', paddingTop: '8px' }}>
                         <div style={{ marginBottom: '4px' }}>
                           <strong>Key details:</strong>
@@ -805,8 +875,10 @@ function Home() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
-      </div>
+        </div>
+      )}
         </main>
       </div>
 

@@ -81,17 +81,28 @@ export default function DealPage() {
     }
   }
 
+  const carLabel = match
+    ? `${match.canonical_vehicle?.make ?? ''} ${match.canonical_vehicle?.model ?? ''}`.trim() || 'Car'
+    : '';
+  const supplierLabel = match?.normalized_offer?.supplier_id ?? '';
+  const carId = match?.canonical_vehicle_id;
+
   return (
     <div className="container">
-      <div className="header">
-        <h1>Leaseconnect</h1>
-        <p>Canonical vehicles and match review</p>
+      <div className="deal-page-header-row">
+        <nav className="deal-page-nav">
+          <Link href="/">Zoeken</Link>
+          <span className="deal-breadcrumb-sep">›</span>
+          {carId != null ? (
+            <Link href={`/car/${carId}`}>{carLabel || 'Car'}</Link>
+          ) : (
+            <span>Car</span>
+          )}
+          <span className="deal-breadcrumb-sep">›</span>
+          <span>{supplierLabel || `Deal #${id}`}</span>
+        </nav>
+        <button type="button" className="deal-export-btn" disabled>Exporteer</button>
       </div>
-      <nav className="deal-page-nav">
-        <Link href="/" className="deal-back">Dashboard</Link>
-        <span className="deal-breadcrumb-sep">/</span>
-        <span>Deal #{id}</span>
-      </nav>
       <div className="dashboard-main deal-page-main">
         <DealDetailPanel
           match={match}

@@ -15,11 +15,9 @@ Web UI for viewing and managing vehicle offer matches.
    ```
 
 3. Run development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Open http://localhost:3000
+   - **From project root (recommended):** `npm run dev` — starts the web app and shows the URL.
+   - **From this folder:** `npm run dev`.
+   Open the URL shown in the terminal (e.g. http://localhost:3000). If you see 404s, you are on the wrong port—use the URL the terminal prints.
 
 ## Environment Variables
 
@@ -27,7 +25,8 @@ Required in `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-These are automatically set from the root `.env` file.
+Optional (for car thumbnails from Imagin.studio):
+- `NEXT_PUBLIC_IMAGIN_CUSTOMER_KEY` – your Imagin customer key. If set, car images are loaded from Imagin CDN; otherwise a placeholder is shown.
 
 ## Deployment
 
