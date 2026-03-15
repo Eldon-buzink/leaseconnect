@@ -25,12 +25,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body style={{ margin: 0, minHeight: '100vh', background: '#f5f5f5', color: '#111' }}>
+      <body className="app-body">
         <Suspense fallback={<NavFallback />}>
           <Nav />
         </Suspense>
-        <div id="root-app" style={{ minHeight: '100vh' }}>
-          {children}
+        <div id="root-app" className="app-shell">
+          <main className="app-main">
+            <div className="app-container">{children}</div>
+          </main>
         </div>
       </body>
     </html>

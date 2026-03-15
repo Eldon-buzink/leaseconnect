@@ -5,7 +5,6 @@
 ### Step 1: Set Up Web UI Environment
 
 ```bash
-cd web
 ./setup-env.sh
 # Or manually create .env.local with Supabase credentials
 ```
@@ -13,7 +12,6 @@ cd web
 ### Step 2: Start the Web UI
 
 ```bash
-cd web
 npm run dev
 ```
 
@@ -62,6 +60,5 @@ Refresh the browser - you'll see:
 - Verify Supabase project is active
 
 **Build errors**
-- Make sure you're in the `web` directory
-- Run `npm install` in web directory
+- Run `npm install` from repository root
 

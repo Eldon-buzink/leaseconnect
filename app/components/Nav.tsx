@@ -23,13 +23,13 @@ export function Nav() {
             href="/"
             className={`site-nav-link ${isCars ? 'active' : ''}`}
           >
-            Cars
+            Inventory
           </Link>
           <Link
             href="/?view=review"
             className={`site-nav-link ${isReview ? 'active' : ''}`}
           >
-            Review
+            Review queue
           </Link>
         </div>
         <div className="site-nav-actions">

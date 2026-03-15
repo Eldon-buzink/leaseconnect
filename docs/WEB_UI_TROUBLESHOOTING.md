@@ -12,7 +12,6 @@
 
 **Fix:**
 ```bash
-cd web
 npm run dev
 ```
 
@@ -46,7 +45,6 @@ npm run dev
 
 **Fix:**
 ```bash
-cd web
 rm -rf .next
 npm run build
 npm run dev
@@ -60,7 +58,6 @@ npm run dev
 lsof -ti:3000 | xargs kill -9
 
 # Restart
-cd web
 npm run dev
 ```
 
@@ -91,7 +88,6 @@ Should return HTML (not "connection refused")
 ### Step 4: Check Environment Variables
 
 ```bash
-cd web
 cat .env.local
 ```
 

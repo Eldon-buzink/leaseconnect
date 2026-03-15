@@ -115,7 +115,7 @@ export default function ModelPage() {
     return (
       <div className="container">
         <nav className="car-page-breadcrumb">
-          <Link href="/">Zoeken</Link>
+          <Link href="/">Inventory</Link>
           <span className="car-page-breadcrumb-sep">›</span>
           <span>{title}</span>
         </nav>
@@ -128,7 +128,7 @@ export default function ModelPage() {
     return (
       <div className="container">
         <nav className="car-page-breadcrumb">
-          <Link href="/">Zoeken</Link>
+          <Link href="/">Inventory</Link>
           <span className="car-page-breadcrumb-sep">›</span>
           <span>{title}</span>
         </nav>
@@ -140,7 +140,7 @@ export default function ModelPage() {
   return (
     <div className="container">
       <nav className="car-page-breadcrumb">
-        <Link href="/">Zoeken</Link>
+        <Link href="/">Inventory</Link>
         <span className="car-page-breadcrumb-sep">›</span>
         <span>{title}</span>
       </nav>

@@ -118,7 +118,7 @@ export function DealDetailPanel({
         </div>
         {!compact && (
           <span className="deal-breadcrumb-inline">
-            Zoeken › {carLabel} › {supplierLabel}
+            Inventory › {carLabel} › {supplierLabel}
           </span>
         )}
       </div>

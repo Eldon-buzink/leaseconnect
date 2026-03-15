@@ -6,10 +6,9 @@ The web dashboard lets you visualize matching results without looking at raw dat
 
 ### 1. Set Up Environment Variables
 
-The web app needs Supabase credentials. Create `web/.env.local`:
+The web app needs Supabase credentials. Create `.env.local` in the repository root:
 
 ```bash
-cd web
 cat > .env.local << EOF
 NEXT_PUBLIC_SUPABASE_URL=https://qkcjlbycgytlinsblrja.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY2psYnljZ3l0bGluc2JscmphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5OTgzOTEsImV4cCI6MjA4NDU3NDM5MX0.C4PRMr9e6-57acey6fx-DyuBVdNeEzq2RziNGKlpWbw
@@ -19,7 +18,6 @@ EOF
 ### 2. Start the Development Server
 
 ```bash
-cd web
 npm run dev
 ```
 
@@ -72,7 +70,7 @@ Since your GitHub repo is already linked to Vercel:
      - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = (your anon key)
 3. **Deploy**: Vercel will auto-deploy on push
 
-The web app is in the `/web` directory, so you may need to configure Vercel to use that as the root directory, or move the Next.js files to the root.
+The web app runs from the repository root.
 
 ## Troubleshooting
 
@@ -85,6 +83,5 @@ The web app is in the `/web` directory, so you may need to configure Vercel to u
 - Verify Supabase project is active
 
 **Build errors**
-- Make sure you're in the `web` directory
-- Run `npm install` to ensure dependencies are installed
+- Run `npm install` from repository root
 

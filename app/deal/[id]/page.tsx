@@ -91,7 +91,7 @@ export default function DealPage() {
     <div className="container">
       <div className="deal-page-header-row">
         <nav className="deal-page-nav">
-          <Link href="/">Zoeken</Link>
+          <Link href="/">Inventory</Link>
           <span className="deal-breadcrumb-sep">›</span>
           {carId != null ? (
             <Link href={`/car/${carId}`}>{carLabel || 'Car'}</Link>

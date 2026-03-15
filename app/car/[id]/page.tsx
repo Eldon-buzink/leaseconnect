@@ -240,7 +240,7 @@ export default function CarPage() {
   return (
     <div className="container">
       <nav className="car-page-breadcrumb">
-        <Link href="/">Zoeken</Link>
+        <Link href="/">Inventory</Link>
         <span className="car-page-breadcrumb-sep">›</span>
         <Link href={modelHref}>{carTitle}</Link>
         <span className="car-page-breadcrumb-sep">›</span>

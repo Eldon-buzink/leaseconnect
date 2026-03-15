@@ -311,6 +311,7 @@ function Home() {
       setModelsList([]);
     } finally {
       setModelsLoading(false);
+      setLoading(false);
     }
   }
 
@@ -461,8 +462,8 @@ function Home() {
         <div className="error" style={{ maxWidth: '560px' }}>
           <strong>Supabase not configured.</strong>
           <p style={{ marginTop: '8px', marginBottom: '0' }}>
-            Create <code>web/.env.local</code> with <code>NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>. See <code>web/.env.local.example</code> or the docs.
+            Create <code>.env.local</code> with <code>NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>. See the README.
           </p>
         </div>
       </div>
@@ -480,8 +481,8 @@ function Home() {
   return (
     <div className="container">
       <div className="header">
-        <h1>{viewMode === 'cars' ? 'Cars' : 'Review'}</h1>
-        <p>{viewMode === 'cars' ? 'Car models, variants, and offer coverage' : 'Matches that need your approval'}</p>
+        <h1>{viewMode === 'cars' ? 'Inventory' : 'Review queue'}</h1>
+        <p>{viewMode === 'cars' ? 'Models and variants with supplier coverage and mapping status' : 'Work queue for uncertain mappings that need review'}</p>
       </div>
 
       {error && <div className="error">Error: {error}</div>}
@@ -626,7 +627,7 @@ function Home() {
         <>
           <div className="table-container table-container-header-only">
             <div className="table-header">
-              <h2>Car models</h2>
+              <h2>Models</h2>
               <div className="table-header-right">
                 <span className="result-count">
                   {filteredCount != null ? `${filteredCount.toLocaleString()} model${filteredCount !== 1 ? 's' : ''}` : ''}
@@ -636,14 +637,18 @@ function Home() {
             </div>
           </div>
           {modelsLoading ? (
-            <div className="dashboard-list-area"><div className="loading">Loading cars...</div></div>
+            <div className="dashboard-list-area">
+              <div className="loading">Loading cars...</div>
+            </div>
           ) : modelsList.length === 0 ? (
-            <div className="dashboard-list-area"><div className="loading">
-              No cars found.{' '}
-              {!supplierFilter && !fuelFilter && !transmissionFilter && (
-                <span>Run <code>npm run load-autodisk</code> to load canonical vehicles.</span>
-              )}
-            </div></div>
+            <div className="dashboard-list-area">
+              <div className="loading">
+                No cars found.{' '}
+                {!supplierFilter && !fuelFilter && !transmissionFilter && (
+                  <span>Run <code>npm run load-autodisk</code> to load canonical vehicles.</span>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="dashboard-list-area">
             <div className="model-list">
@@ -705,42 +710,48 @@ function Home() {
           )}
         </>
       ) : (
-        <div className="table-container table-container-full">
-          <div className="table-header">
-            <h2>Matches</h2>
-            <div className="table-header-right">
-              <span className="result-count">
-                {filteredCount !== null
-                  ? `${filteredCount.toLocaleString()} match${filteredCount !== 1 ? 'es' : ''}`
-                  : stats != null
-                    ? `${(stats.total).toLocaleString()} matches`
-                    : ''}
-              </span>
-              <button onClick={() => loadData()} className="btn-refresh">Refresh</button>
+        <>
+          <div className="review-queue-layout">
+          <div className="table-container table-container-header-only">
+            <div className="table-header">
+              <h2>Review queue</h2>
+              <div className="table-header-right">
+                <span className="result-count">
+                  {filteredCount !== null
+                    ? `${filteredCount.toLocaleString()} match${filteredCount !== 1 ? 'es' : ''}`
+                    : stats != null
+                      ? `${(stats.total).toLocaleString()} matches`
+                      : ''}
+                </span>
+                <button onClick={() => loadData()} className="btn-refresh">Refresh</button>
+              </div>
             </div>
           </div>
         {loading ? (
-          <div className="loading">Loading matches...</div>
+          <div className="dashboard-list-area">
+            <div className="loading">Loading matches...</div>
+          </div>
         ) : matches.length === 0 ? (
-          <div className="loading">
-            No matches found.{' '}
-            {stats?.total === 0 && (
-              <span>
-                Run <code>npm run rematch-all</code> to generate matches.
-              </span>
-            )}
+          <div className="dashboard-list-area">
+            <div className="loading">
+              No matches found.{' '}
+              {stats?.total === 0 && (
+                <span>
+                  Run <code>npm run rematch-all</code> to generate matches.
+                </span>
+              )}
+            </div>
           </div>
         ) : (
-          <div className="table-body">
-          <table className="table-matches">
+          <div className="dashboard-list-area">
+            <div className="review-table-wrapper">
+              <table className="table-matches table-matches-cards">
             <thead>
               <tr>
                 <th className="th-thumb">Car</th>
                 <th>Supplier Offer</th>
                 <th>Canonical Vehicle</th>
-                <th>Match Type</th>
                 <th>Confidence</th>
-                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -748,7 +759,7 @@ function Home() {
               {matches.map((match) => (
                 <React.Fragment key={match.id}>
                 <tr
-                  className="tr-clickable"
+                  className={`tr-clickable${expandedId === match.id ? ' tr-expanded' : ''}`}
                   onClick={() => setExpandedId(expandedId === match.id ? null : match.id)}
                   role="button"
                   tabIndex={0}
@@ -805,15 +816,9 @@ function Home() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge badge-${match.match_type}`}>{match.match_type}</span>
-                  </td>
-                  <td>
                     <span className={`score ${getScoreClass(match.confidence_score)}`}>
                       {(match.confidence_score * 100).toFixed(1)}%
                     </span>
-                  </td>
-                  <td>
-                    <span className={`badge badge-${match.status}`}>{match.status}</span>
                   </td>
                   <td className="td-actions" onClick={(e) => e.stopPropagation()}>
                     <div className="actions-cell">
@@ -840,32 +845,61 @@ function Home() {
                   </td>
                 </tr>
                 {expandedId === match.id && (
-                  <tr>
-                    <td colSpan={7}>
-                      <div style={{ fontSize: '11px', color: '#555', paddingTop: '8px' }}>
-                        <div style={{ marginBottom: '4px' }}>
-                          <strong>Key details:</strong>
+                  <tr className="review-expanded-row">
+                    <td colSpan={5}>
+                      <div className="review-key-details">
+                        <div className="review-key-details-grid">
+                          <div className="review-key-details-section">
+                            <h4 className="review-key-details-heading">Supplier offer</h4>
+                            <dl className="review-key-details-list">
+                              <dt>Make / model</dt>
+                              <dd>{match.normalized_offer?.make || '–'} · {match.normalized_offer?.model || '–'}</dd>
+                              <dt>Trim</dt>
+                              <dd>{match.normalized_offer?.trim || '–'}</dd>
+                              <dt>Year</dt>
+                              <dd>{match.normalized_offer?.year ?? '–'}</dd>
+                              <dt>Fuel / transmission</dt>
+                              <dd>{(match.normalized_offer?.fuel_type || '–')} / {(match.normalized_offer?.transmission || '–')}</dd>
+                              <dt>Supplier & offer ID</dt>
+                              <dd>{match.normalized_offer?.supplier_id || '–'} · {match.normalized_offer?.supplier_offer_id || '–'}</dd>
+                            </dl>
+                          </div>
+                          <div className="review-key-details-section">
+                            <h4 className="review-key-details-heading">Canonical vehicle</h4>
+                            <dl className="review-key-details-list">
+                              <dt>Make / model</dt>
+                              <dd>{match.canonical_vehicle?.make || '–'} · {match.canonical_vehicle?.model || '–'}</dd>
+                              <dt>Trim</dt>
+                              <dd>{match.canonical_vehicle?.trim || '–'}</dd>
+                              <dt>Year</dt>
+                              <dd>{match.canonical_vehicle?.year ?? '–'}</dd>
+                              <dt>Fuel / transmission</dt>
+                              <dd>{(match.canonical_vehicle?.fuel_type || '–')} / {(match.canonical_vehicle?.transmission || '–')}</dd>
+                              <dt>Autodisk ID</dt>
+                              <dd>{match.canonical_vehicle?.autodisk_id || '–'}</dd>
+                            </dl>
+                          </div>
+                          <div className="review-key-details-section">
+                            <h4 className="review-key-details-heading">Match info</h4>
+                            <dl className="review-key-details-list">
+                              <dt>Match type</dt>
+                              <dd><span className={`badge badge-${match.match_type}`}>{match.match_type}</span></dd>
+                              <dt>Status</dt>
+                              <dd><span className={`badge badge-${match.status}`}>{match.status}</span></dd>
+                              <dt>Confidence</dt>
+                              <dd><span className={`score ${getScoreClass(match.confidence_score)}`}>{(match.confidence_score * 100).toFixed(1)}%</span></dd>
+                              {match.matched_at && (
+                                <>
+                                  <dt>Matched at</dt>
+                                  <dd>{new Date(match.matched_at).toLocaleString()}</dd>
+                                </>
+                              )}
+                            </dl>
+                          </div>
                         </div>
-                        <div>
-                          <strong>Make/Model:</strong>{' '}
-                          {match.normalized_offer?.make || '–'} /{' '}
-                          {match.canonical_vehicle?.make || '–'} |{' '}
-                          {match.normalized_offer?.model || '–'} /{' '}
-                          {match.canonical_vehicle?.model || '–'}
-                        </div>
-                        <div>
-                          <strong>Trim:</strong>{' '}
-                          {match.normalized_offer?.trim || '–'} /{' '}
-                          {match.canonical_vehicle?.trim || '–'}
-                        </div>
-                        <div>
-                          <strong>Year:</strong>{' '}
-                          {match.normalized_offer?.year ?? '–'} /{' '}
-                          {match.canonical_vehicle?.year ?? '–'}
-                        </div>
-                        <div style={{ marginTop: '6px' }}>
-                          <strong>Why matched:</strong>{' '}
-                          {match.review_notes || 'No explanation available for this match.'}
+                        <div className="review-key-details-notes">
+                          <h4 className="review-key-details-heading">Why matched</h4>
+                          <p>{match.review_notes || 'No explanation available for this match.'}</p>
                         </div>
                       </div>
                     </td>
@@ -876,8 +910,10 @@ function Home() {
             </tbody>
           </table>
           </div>
-        )}
         </div>
+        )}
+          </div>
+        </>
       )}
         </main>
       </div>

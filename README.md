@@ -14,7 +14,7 @@ Car specification matching system for leasing companies. Matches supplier vehicl
 
 2. **First-time setup** (env and deps): if needed, run once:
    ```bash
-   cd web && ./setup-env.sh && npm install
+   ./setup-env.sh && npm install
    ```
    Then from root again: `npm run dev`.
 
@@ -35,12 +35,7 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for detailed instructions.
 
 ### Deploying to Vercel
 
-The Next.js app lives in the `web/` folder. In Vercel:
-
-1. **Project Settings → General → Root Directory**  
-   Set to **`web`** (click "Edit", enter `web`, save).
-2. **Redeploy**  
-   Trigger a new deployment so the build runs from `web/` and uses `next build`.
+The Next.js app runs from the repository root.
 
 ### CLI Usage
 
